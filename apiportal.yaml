@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    apigw.version: 1.7.0 (767ab4b)
+  labels:
+    app: portal
+    env: test
+  name: portal
+  namespace: test
+spec:
+  selector:
+    matchLabels:
+      app: portal
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: portal
+    spec:
+      volumes:
+      - name: apachecert
+        secret:
+          secretName: apachecert
+      - name: apachekey
+        secret:
+          secretName: apachekey
+
+
+      imagePullSecrets:
+      - name: regcred
+      containers:
+        - name: portal
+          env:
+            - name: MYSQL_HOST
+              value: mysql
+            - name: MYSQL_PORT
+              value: '3306'
+            - name: MYSQL_DATABASE
+              value: joomla
+            - name: MYSQL_USER
+              value: root
+            - name: MYSQL_PASSWORD
+              value: changeme
+            - name: APACHE_SSL_ON
+              value: '1'
+            - name: APACHE_SSL_PRIVATE_KEY
+              valueFrom: 
+                secretKeyRef:
+                  name: apachekey
+                  key: apache-selfsigned.key
+            - name : APACHE_SSL_CERT
+              valueFrom: 
+                secretKeyRef:
+                  name: apachecert
+                  key: apache-selfsigned.crt
+            - name: APIMANAGER_CONFIGURED
+              value: "1"
+            - name: APIMANAGER_NAME
+              value: apimanager
+            - name: APIMANAGER_HOST
+              value: apimgmt
+            - name: APIMANAGER_PORT
+              value: "8075"
+          image: docker-registry.demo.axway.com/apim-demo/portal:7.7-202202
+          volumeMounts:
+          - name: apachecert
+            readOnly: true
+            mountPath: "/etc/apachecert"
+          - name: apachekey
+            readOnly: true
+            mountPath: "/etc/apachekey"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 443
+              protocol: TCP
+          resources: {}
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+---
+
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    apigw.version: 1.7.0 (767ab4b)
+  labels:
+    app: portal
+    env: test
+  name: portal
+  namespace: test
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: portal
+  selector:
+    app: portal
+---
